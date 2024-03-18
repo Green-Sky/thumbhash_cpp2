@@ -1,0 +1,48 @@
+
+thumbhash: namespace = {
+
+rgba_to_thumb_hash: (rgba: std::span<u8>, w: i16, h: i16) -> std::vector<u8> = {
+	// TODO: do the same 100x100 max as ref?
+
+	assert(rgba.size() == w * h * 4);
+	assert(!rgba.empty());
+
+	// avg color
+	avg_r := 0.0f;
+	avg_g := 0.0f;
+	avg_b := 0.0f;
+	avg_a := 0.0f;
+
+	// someone explain to my why this is the "average"
+	i: i32 = 0;
+	while i < rgba.ssize() next i += 4 {
+		pixel := rgba.subspan(i, 4);
+		alpha := float(pixel[3]) / 255.f;
+		avg_r += alpha / 255.f * float(pixel[0]);
+		avg_g += alpha / 255.f * float(pixel[1]);
+		avg_b += alpha / 255.f * float(pixel[2]);
+		avg_a += alpha;
+	}
+
+	if avg_a > 0.f {
+		avg_r /= avg_a;
+		avg_g /= avg_a;
+		avg_b /= avg_a;
+	}
+
+	std::cout << "avg r:(avg_r)$ g:(avg_g)$ b:(avg_b)$ a:(avg_a)$\n";
+
+	has_alpha : const bool = avg_a < w * h;
+	l_limit : const i16;
+	if has_alpha {
+		l_limit = 5;
+	} else {
+		l_limit = 7;
+	}
+	_ = l_limit;
+
+	return ();
+}
+
+} // thumbhash
+

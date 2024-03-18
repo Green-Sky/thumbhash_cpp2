@@ -1,0 +1,7 @@
+
+thumbhash: namespace = {
+
+rgba_to_thumb_hash: (rgba: std::span<u8>, w: i16, h: i16) -> std::vector<u8>;
+
+} // thumbhash
+
