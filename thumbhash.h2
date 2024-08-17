@@ -11,18 +11,18 @@ rgba_to_thumb_hash: (rgba: std::span<const u8>, w: i16, h: i16) -> std::vector<u
 	avg_r := 0.0f;
 	avg_g := 0.0f;
 	avg_b := 0.0f;
-	avg_a := 0.0f;
+	avg_a := 0.0f; // not avg but sum
 
-	// someone explain to me why this is the "average"
-	i: i32 = 0;
-	while i < rgba.ssize() next i += 4 {
-		pixel := rgba.subspan(i, 4);
-		//alpha := (pixel[3] as float) / 255.f;
-		alpha := pixel[3] / 255.f;
-		avg_r += (alpha / 255.f) * pixel[0];
-		avg_g += (alpha / 255.f) * pixel[1];
-		avg_b += (alpha / 255.f) * pixel[2];
-		avg_a += alpha;
+	{
+		i: i32 = 0;
+		while i < rgba.ssize() next i += 4 {
+			pixel := rgba.subspan(i, 4);
+			alpha := pixel[3] / 255.f;
+			avg_r += (pixel[0] / 255.f) * alpha;
+			avg_g += (pixel[1] / 255.f) * alpha;
+			avg_b += (pixel[2] / 255.f) * alpha;
+			avg_a += alpha;
+		}
 	}
 
 	if avg_a > 0.f {
@@ -40,7 +40,40 @@ rgba_to_thumb_hash: (rgba: std::span<const u8>, w: i16, h: i16) -> std::vector<u
 	} else {
 		l_limit = 7;
 	}
-	_ = l_limit;
+
+	longer_side : const i16;
+	if w >= h {
+		longer_side = w;
+	} else {
+		longer_side = h;
+	}
+
+	l_w : const = std::max<i16>(1, i16(std::round(float(l_limit * w) / longer_side)));
+	l_h : const = std::max<i16>(1, i16(std::round(float(l_limit * h) / longer_side)));
+
+	l := std::vector<float>(w*h); // luminance
+	p := std::vector<float>(w*h); // yellow - blue
+	q := std::vector<float>(w*h); // red - green
+	a := std::vector<float>(w*h); // alpha
+
+	// Convert the image from RGBA to LPQA (composite atop the average color)
+	{
+		i: i32 = 0;
+		while i*4 < rgba.ssize() next i++ {
+			pixel := rgba.subspan(i*4, 4);
+			alpha := pixel[3] / 255.f;
+
+			r := avg_r * (1.f - alpha) + pixel[0]/255.f * alpha;
+			g := avg_g * (1.f - alpha) + pixel[1]/255.f * alpha;
+			b := avg_b * (1.f - alpha) + pixel[2]/255.f * alpha;
+
+			l[i] = (r + g + b) / 3.f;
+			p[i] = (r + g) / 2.f - b;
+			q[i] = r - g;
+			a[i] = alpha;
+		}
+	}
+
 
 	return ();
 }
