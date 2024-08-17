@@ -1,3 +1,4 @@
+#include "thumbhash.h2"
 
 main: () -> int = {
 
@@ -16,7 +17,19 @@ main: () -> int = {
 		_ = test_data1_hash;
 
 		// run hash
+		hash_result : _ = thumbhash::rgba_to_thumb_hash(test_data1_rgba, 2, 2);
+		_ = hash_result;
+
 		// compare
+		//assert(hash_result.ssize() == test_data1_hash.ssize());
+		if (hash_result.ssize() != test_data1_hash.ssize()) {
+			std::cerr << "hash size mismatch, should be " << test_data1_hash.ssize() << " but is " << hash_result.ssize() << "\n";
+			return 1;
+		}
+
+		//i := 0;
+		//while i < ha
+		//}
 
 	}
 
