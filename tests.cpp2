@@ -13,24 +13,29 @@ main: () -> int = {
 			0xC0, 0x77, 0x77, 0x78, 0x88, 0x88, 0x87, 0x78,
 			0x78, 0x78, 0x07, 0xF8, 0x73, 0x80, 0x3F, 0x07,
 		);
-		_ = test_data1_rgba;
-		_ = test_data1_hash;
 
 		// run hash
 		hash_result : _ = thumbhash::rgba_to_thumb_hash(test_data1_rgba, 2, 2);
-		_ = hash_result;
 
 		// compare
 		//assert(hash_result.ssize() == test_data1_hash.ssize());
 		if (hash_result.ssize() != test_data1_hash.ssize()) {
-			std::cerr << "hash size mismatch, should be " << test_data1_hash.ssize() << " but is " << hash_result.ssize() << "\n";
+			std::cerr << "hash size mismatch, should be (test_data1_hash.ssize())$ but is (hash_result.ssize())$\n";
 			return 1;
 		}
 
-		//i := 0;
-		//while i < ha
-		//}
+		std::cout << "computed hash: ";
+		for hash_result do (e) {
+			std::cout << "(e:#04x)$ ";
+		}
+		std::cout << "\n";
 
+		for 0 ..< hash_result.ssize() do (i) {
+			if (hash_result[i] != test_data1_hash[i]) {
+				std::cerr << "hash mismatch @ (i)$, should be (test_data1_hash[i]:#04x)$ but is (hash_result[i]:#04x)$\n";
+				return 1;
+			}
+		}
 	}
 
 	return 0;

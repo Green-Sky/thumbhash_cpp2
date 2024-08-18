@@ -1,6 +1,53 @@
 
 thumbhash: namespace = {
 
+PI: _ == 3.14159'26535'89793'23846L;
+
+encode_empty_channel : () -> (dc : float, ac : std::vector<float> = (), scale : float) = {
+	dc = 1.f;
+	scale = 1.f;
+}
+
+encode_channel : (channel, w, h, nx, ny) -> (dc : float, ac : std::vector<float> = (), scale : float) = {
+	dc = 0.f;
+	ac.reserve(nx * ny / 2);
+	scale = 0.f;
+
+	fx := std::vector<float>(w);
+
+	for 0 ..< ny do (cy) {
+		(copy cx := 0)
+		while (cx * ny < nx * (ny - cy)) next cx++ {
+			for 0 ..< w do (x) {
+				fx[x] = std::cos(PI / w * cx * (x + 0.5f));
+			}
+
+			f : float = 0.f;
+			for 0 ..< h do (y) {
+				fy := std::cos(PI / h * cy * (y + 0.5f));
+				for 0 ..< w do (x) {
+					f += channel[x + y * w] * fx[x] * fy;
+				}
+			}
+			f /= w * h;
+
+			if (cx > 0 || cy > 0) {
+				ac.push_back(f);
+				scale = std::max(scale, std::abs(f));
+			} else {
+				dc = f;
+			}
+		}
+	}
+
+	if (scale > 0) {
+		for ac do (inout e) {
+			e = 0.5f + 0.5f / scale * e;
+		}
+	}
+}
+
+
 rgba_to_thumb_hash: (rgba: std::span<const u8>, w: i16, h: i16) -> std::vector<u8> = {
 	// TODO: do the same 100x100 max as ref?
 
@@ -13,16 +60,14 @@ rgba_to_thumb_hash: (rgba: std::span<const u8>, w: i16, h: i16) -> std::vector<u
 	avg_b := 0.0f;
 	avg_a := 0.0f; // not avg but sum
 
-	{
-		i: i32 = 0;
-		while i < rgba.ssize() next i += 4 {
-			pixel := rgba.subspan(i, 4);
-			alpha := pixel[3] / 255.f;
-			avg_r += (pixel[0] / 255.f) * alpha;
-			avg_g += (pixel[1] / 255.f) * alpha;
-			avg_b += (pixel[2] / 255.f) * alpha;
-			avg_a += alpha;
-		}
+	(copy i: i32 = 0)
+	while i < rgba.ssize() next i += 4 {
+		pixel := rgba.subspan(i, 4);
+		alpha := pixel[3] / 255.f;
+		avg_r += (pixel[0] / 255.f) * alpha;
+		avg_g += (pixel[1] / 255.f) * alpha;
+		avg_b += (pixel[2] / 255.f) * alpha;
+		avg_a += alpha;
 	}
 
 	if avg_a > 0.f {
@@ -74,8 +119,94 @@ rgba_to_thumb_hash: (rgba: std::span<const u8>, w: i16, h: i16) -> std::vector<u
 		}
 	}
 
+	// Encode using the DCT into DC (constant) and normalized AC (varying) terms
+	dct_l := encode_channel(l, w, h, std::max<i16>(3, l_w), std::max<i16>(3, l_h));
+	dct_p := encode_channel(p, w, h, 3, 3);
+	dct_q := encode_channel(q, w, h, 3, 3);
 
-	return ();
+	std::cout << "dct_l.dc: (dct_l.dc)$\n";
+	std::cout << "dct_l.scale: (dct_l.scale)$\n";
+
+	dct_a_dc := 1.f;
+	dct_a_ac := std::vector<float>();
+	dct_a_scale := 1.f;
+
+	if has_alpha {
+		// very meh, either declare a common return type with defaults, or beg for structured bindings
+		// or use tuples?
+		dct_a := encode_channel(a, w, h, 5, 5);
+		dct_a_dc = dct_a.dc;
+		dct_a_ac = dct_a.ac;
+		dct_a_scale = dct_a.scale;
+	}
+
+	is_landscape : const = w > h;
+	std::cout << "is_landscape: (is_landscape)$\n";
+
+	header24 : const u32 =
+		(u32(std::round(63.f * dct_l.dc)) << 0) |
+		(u32(std::round(31.5f + 31.5f * dct_p.dc)) << 6) |
+		(u32(std::round(31.5f + 31.5f * dct_q.dc)) << 12) |
+		(u32(std::round(31.0f * dct_l.scale)) << 18) |
+		(u32(has_alpha) << 23)
+	;
+
+	landscape_l : u16;
+	if is_landscape {
+		landscape_l = l_h;
+	} else {
+		landscape_l = l_w;
+	}
+	std::cout << "landscape_l: (landscape_l)$\n";
+
+	header16 : const u16 =
+		landscape_l |
+		(u16(std::round(63.f * dct_p.scale)) << 3) |
+		(u16(std::round(63.f * dct_q.scale)) << 9) |
+		(u16(is_landscape) << 15)
+	;
+
+	hash := std::vector<u8>();
+	hash.reserve(25);
+	hash.push_back(u8((header24 >> 0) & 0xff));
+	hash.push_back(u8((header24 >> 8) & 0xff));
+	hash.push_back(u8((header24 >> 16) & 0xff));
+	hash.push_back(u8((header16 >> 0) & 0xff));
+	hash.push_back(u8((header16 >> 8) & 0xff));
+
+	if has_alpha {
+		hash.push_back(
+			(u8(std::round(15.f * dct_a_dc)) << 0) |
+			(u8(std::round(15.f * dct_a_scale)) << 4)
+		);
+	}
+
+	is_odd := false;
+
+	for (dct_l.ac, dct_p.ac, dct_q.ac) do (ac) {
+		for ac do (f) {
+			v : const = u8(std::round(15.f * f));
+			if is_odd {
+				hash.back() != v << 4;
+			} else {
+				hash.push_back(v);
+			}
+			is_odd = !is_odd;
+		}
+	}
+	if has_alpha {
+		for dct_a_ac do (f) {
+			v : const = u8(std::round(15.f * f));
+			if is_odd {
+				hash.back() != v << 4;
+			} else {
+				hash.push_back(v);
+			}
+			is_odd = !is_odd;
+		}
+	}
+
+	return hash;
 }
 
 } // thumbhash
