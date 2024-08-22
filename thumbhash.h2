@@ -3,28 +3,28 @@ thumbhash: namespace = {
 
 PI: _ == 3.14159'26535'89793'23846L;
 
-encode_empty_channel : () -> (dc : float, ac : std::vector<float> = (), scale : float) = {
-	dc = 1.f;
-	scale = 1.f;
-}
-
 encode_channel : (channel, w, h, nx, ny) -> (dc : float, ac : std::vector<float> = (), scale : float) = {
 	dc = 0.f;
 	ac.reserve(nx * ny / 2);
 	scale = 0.f;
 
-	fx := std::vector<float>(w);
+	fx := std::vector<float>(w, 0.f);
 
 	for 0 ..< ny do (cy) {
 		(copy cx := 0)
 		while (cx * ny < nx * (ny - cy)) next cx++ {
 			for 0 ..< w do (x) {
-				fx[x] = std::cos(PI / w * cx * (x + 0.5f));
+				step1 : const float = float(PI) / w;
+				step2 : const float = step1 * cx;
+				step3 : const float = step2 * (float(x) + 0.5f);
+				fx[x] = std::cos(step3);
+				//fx[x] = std::cos(PI / float(w) * float(cx) * (float(x) + 0.5f));
 			}
 
 			f : float = 0.f;
 			for 0 ..< h do (y) {
-				fy := std::cos(PI / h * cy * (y + 0.5f));
+				//fy : const = std::cos(PI / float(h) * float(cy) * (float(y) + 0.5f));
+				fy : const = std::cos(PI / h * cy * (y + 0.5f));
 				for 0 ..< w do (x) {
 					f += channel[x + y * w] * fx[x] * fy;
 				}
@@ -102,21 +102,19 @@ rgba_to_thumb_hash: (rgba: std::span<const u8>, w: i16, h: i16) -> std::vector<u
 	a := std::vector<float>(w*h); // alpha
 
 	// Convert the image from RGBA to LPQA (composite atop the average color)
-	{
-		i: i32 = 0;
-		while i*4 < rgba.ssize() next i++ {
-			pixel := rgba.subspan(i*4, 4);
-			alpha := pixel[3] / 255.f;
+	(copy i: i32 = 0)
+	while i*4 < rgba.ssize() next i++ {
+		pixel := rgba.subspan(i*4, 4);
+		alpha := pixel[3] / 255.f;
 
-			r := avg_r * (1.f - alpha) + pixel[0]/255.f * alpha;
-			g := avg_g * (1.f - alpha) + pixel[1]/255.f * alpha;
-			b := avg_b * (1.f - alpha) + pixel[2]/255.f * alpha;
+		r := avg_r * (1.f - alpha) + pixel[0]/255.f * alpha;
+		g := avg_g * (1.f - alpha) + pixel[1]/255.f * alpha;
+		b := avg_b * (1.f - alpha) + pixel[2]/255.f * alpha;
 
-			l[i] = (r + g + b) / 3.f;
-			p[i] = (r + g) / 2.f - b;
-			q[i] = r - g;
-			a[i] = alpha;
-		}
+		l[i] = (r + g + b) / 3.f;
+		p[i] = (r + g) / 2.f - b;
+		q[i] = r - g;
+		a[i] = alpha;
 	}
 
 	// Encode using the DCT into DC (constant) and normalized AC (varying) terms
@@ -187,7 +185,7 @@ rgba_to_thumb_hash: (rgba: std::span<const u8>, w: i16, h: i16) -> std::vector<u
 		for ac do (f) {
 			v : const = u8(std::round(15.f * f));
 			if is_odd {
-				hash.back() != v << 4;
+				hash.back() |= v << 4;
 			} else {
 				hash.push_back(v);
 			}
@@ -198,7 +196,7 @@ rgba_to_thumb_hash: (rgba: std::span<const u8>, w: i16, h: i16) -> std::vector<u
 		for dct_a_ac do (f) {
 			v : const = u8(std::round(15.f * f));
 			if is_odd {
-				hash.back() != v << 4;
+				hash.back() |= v << 4;
 			} else {
 				hash.push_back(v);
 			}

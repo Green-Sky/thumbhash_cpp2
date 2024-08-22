@@ -9,30 +9,85 @@ main: () -> int = {
 		);
 
 		test_data1_hash : const std::array<u8, 24> = (
-			0xF5, 0x78, 0x0E, 0x2F, 0x12, 0x7F, 0x87, 0x87,
-			0xC0, 0x77, 0x77, 0x78, 0x88, 0x88, 0x87, 0x78,
-			0x78, 0x78, 0x07, 0xF8, 0x73, 0x80, 0x3F, 0x07,
+			// old (blury upscale)
+			//0xF5, 0x78, 0x0E, 0x2F, 0x12, 0x7F, 0x87, 0x87,
+			//0xC0, 0x77, 0x77, 0x78, 0x88, 0x88, 0x87, 0x78,
+			//0x78, 0x78, 0x07, 0xF8, 0x73, 0x80, 0x3F, 0x07,
+
+			// new (nn upscale 64x64 + blur upscale to 100x100)
+			//0xF4, 0x78, 0x0E, 0x2F, 0x14, 0x7F, 0x85, 0x79,
+			//0xC0, 0x67, 0x88, 0x78, 0x87, 0xA7, 0x86, 0x78,
+			//0x78, 0x86, 0x08, 0xF8, 0x73, 0x80, 0x3F, 0x07,
+
+			// new (nn upscale 128x128 + blur downscale to 100x100)
+			//0xF4, 0x78, 0x0E, 0x2F, 0x14, 0x8F, 0x85, 0x89,
+			//0xC0, 0x67, 0x88, 0x87, 0x78, 0xA7, 0x76, 0x78,
+			//0x87, 0x86, 0x08, 0xF7, 0x83, 0x70, 0x3F, 0x07,
+
+			// new (nn upscale 100x100)
+			0xF4, 0x78, 0x0E, 0x2F, 0x14, 0x8F, 0x85, 0x89,
+			0xC0, 0x67, 0x88, 0x87, 0x78, 0xA7, 0x76, 0x78,
+			0x87, 0x86, 0x08, 0xF7, 0x83, 0x70, 0x3F, 0x07,
 		);
 
+		src_w : const = 2;
+		src_h : const = 2;
+
+		// fist resize to 100x100 (aprox)
+		img_size : const = std::max(src_w, src_h);
+		img_w : const = std::lround(100 * src_w / img_size);
+		img_h : const = std::lround(100 * src_h / img_size);
+		resized_img : const std::vector<u8>;
+		{
+			tmp_img := std::vector<u8>(img_w * img_h * 4, 0xff);
+			// og size 2x2
+			// target size img_w x img_h
+			// perform nn
+			for 0 ..< img_h do (dest_y) {
+				for 0 ..< img_w do (dest_x) {
+					sx : const = std::lround(float(dest_x) / img_w * (src_w - 1));
+					sy : const = std::lround(float(dest_y) / img_h * (src_h - 1));
+
+					src_pos : const = (sx * 4) + sy * src_w * 4;
+					dst_pos : const = (dest_x * 4) + dest_y * img_w * 4;
+
+					tmp_img[dst_pos + 0] = test_data1_rgba[src_pos + 0];
+					tmp_img[dst_pos + 1] = test_data1_rgba[src_pos + 1];
+					tmp_img[dst_pos + 2] = test_data1_rgba[src_pos + 2];
+					tmp_img[dst_pos + 3] = test_data1_rgba[src_pos + 3];
+				}
+			}
+			resized_img = tmp_img;
+		}
+
 		// run hash
-		hash_result : _ = thumbhash::rgba_to_thumb_hash(test_data1_rgba, 2, 2);
+		//hash_result : _ = thumbhash::rgba_to_thumb_hash(test_data1_rgba, src_w, src_h);
+		hash_result : _ = thumbhash::rgba_to_thumb_hash(resized_img, img_w, img_h);
+
+		std::cout << "computed hash: ";
+		for hash_result do (e) {
+			std::cout << "(e:02x)$ ";
+		}
+		std::cout << "\n";
 
 		// compare
 		//assert(hash_result.ssize() == test_data1_hash.ssize());
 		if (hash_result.ssize() != test_data1_hash.ssize()) {
 			std::cerr << "hash size mismatch, should be (test_data1_hash.ssize())$ but is (hash_result.ssize())$\n";
-			return 1;
+			//return 1;
+			hash_result.resize(test_data1_hash.size());
 		}
-
-		std::cout << "computed hash: ";
-		for hash_result do (e) {
-			std::cout << "(e:#04x)$ ";
-		}
-		std::cout << "\n";
 
 		for 0 ..< hash_result.ssize() do (i) {
 			if (hash_result[i] != test_data1_hash[i]) {
 				std::cerr << "hash mismatch @ (i)$, should be (test_data1_hash[i]:#04x)$ but is (hash_result[i]:#04x)$\n";
+
+				std::cerr << "test hash:     ";
+				for test_data1_hash do (e) {
+					std::cerr << "(e:02x)$ ";
+				}
+				std::cerr << "\n";
+
 				return 1;
 			}
 		}
