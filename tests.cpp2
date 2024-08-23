@@ -24,45 +24,26 @@ main: () -> int = {
 			//0xC0, 0x67, 0x88, 0x87, 0x78, 0xA7, 0x76, 0x78,
 			//0x87, 0x86, 0x08, 0xF7, 0x83, 0x70, 0x3F, 0x07,
 
-			// new (nn upscale 100x100)
+			// new (nn upscale 100x100) output of ref js
+			//0xF4, 0x78, 0x0E, 0x2F, 0x14, 0x8F, 0x85, 0x89,
+			//0xC0, 0x67, 0x88, 0x87, 0x78, 0xA7, 0x76, 0x78,
+			//0x87, 0x86, 0x08, 0xF7, 0x83, 0x70, 0x3F, 0x07,
+
+			// new (nn upscale 100x100) output of self
 			0xF4, 0x78, 0x0E, 0x2F, 0x14, 0x8F, 0x85, 0x89,
-			0xC0, 0x67, 0x88, 0x87, 0x78, 0xA7, 0x76, 0x78,
-			0x87, 0x86, 0x08, 0xF7, 0x83, 0x70, 0x3F, 0x07,
+			0xC0, 0x67, 0x87, 0x78, 0x88, 0xA8, 0x86, 0x88,
+			0x88, 0x86, 0x08, 0xF8, 0x83, 0x80, 0x3F, 0x08,
 		);
 
 		src_w : const = 2;
 		src_h : const = 2;
 
 		// fist resize to 100x100 (aprox)
-		img_size : const = std::max(src_w, src_h);
-		img_w : const = std::lround(100 * src_w / img_size);
-		img_h : const = std::lround(100 * src_h / img_size);
-		resized_img : const std::vector<u8>;
-		{
-			tmp_img := std::vector<u8>(img_w * img_h * 4, 0xff);
-			// og size 2x2
-			// target size img_w x img_h
-			// perform nn
-			for 0 ..< img_h do (dest_y) {
-				for 0 ..< img_w do (dest_x) {
-					sx : const = std::lround(float(dest_x) / img_w * (src_w - 1));
-					sy : const = std::lround(float(dest_y) / img_h * (src_h - 1));
-
-					src_pos : const = (sx * 4) + sy * src_w * 4;
-					dst_pos : const = (dest_x * 4) + dest_y * img_w * 4;
-
-					tmp_img[dst_pos + 0] = test_data1_rgba[src_pos + 0];
-					tmp_img[dst_pos + 1] = test_data1_rgba[src_pos + 1];
-					tmp_img[dst_pos + 2] = test_data1_rgba[src_pos + 2];
-					tmp_img[dst_pos + 3] = test_data1_rgba[src_pos + 3];
-				}
-			}
-			resized_img = tmp_img;
-		}
+		resized := thumbhash::scale_to_size_nn(test_data1_rgba, src_w, src_h);
 
 		// run hash
 		//hash_result : _ = thumbhash::rgba_to_thumb_hash(test_data1_rgba, src_w, src_h);
-		hash_result : _ = thumbhash::rgba_to_thumb_hash(resized_img, img_w, img_h);
+		hash_result : _ = thumbhash::rgba_to_thumb_hash(resized.out_img, resized.out_w, resized.out_h);
 
 		std::cout << "computed hash: ";
 		for hash_result do (e) {

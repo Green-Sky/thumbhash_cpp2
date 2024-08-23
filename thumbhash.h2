@@ -3,6 +3,34 @@ thumbhash: namespace = {
 
 PI: _ == 3.14159'26535'89793'23846L;
 
+// down-/upscale to ~100x100, keeping the aprox. ratio
+scale_to_size_nn : (src_img, src_w, src_h) -> (out_img : std::vector<u8>, out_w : i32, out_h : i32) = {
+	out_img = std::vector<u8>();
+
+	// resize to 100x100 (aprox, the longer size will be 100)
+	img_size : const = std::max(src_w, src_h);
+	out_w = std::lround(100 * src_w / img_size);
+	out_h = std::lround(100 * src_h / img_size);
+	//out_img = std::vector<u8>(out_w * out_h * 4, 0xff);
+	out_img.resize(out_w * out_h * 4, 0xff);
+
+	// perform nn
+	for 0 ..< out_h do (dest_y) {
+		for 0 ..< out_w do (dest_x) {
+			sx : const = std::lround(float(dest_x) / out_w * (src_w - 1));
+			sy : const = std::lround(float(dest_y) / out_h * (src_h - 1));
+
+			src_pos : const = (sx * 4) + sy * src_w * 4;
+			dst_pos : const = (dest_x * 4) + dest_y * out_w * 4;
+
+			out_img[dst_pos + 0] = src_img[src_pos + 0];
+			out_img[dst_pos + 1] = src_img[src_pos + 1];
+			out_img[dst_pos + 2] = src_img[src_pos + 2];
+			out_img[dst_pos + 3] = src_img[src_pos + 3];
+		}
+	}
+}
+
 encode_channel : (channel, w, h, nx, ny) -> (dc : float, ac : std::vector<float> = (), scale : float) = {
 	dc = 0.f;
 	ac.reserve(nx * ny / 2);
@@ -14,17 +42,13 @@ encode_channel : (channel, w, h, nx, ny) -> (dc : float, ac : std::vector<float>
 		(copy cx := 0)
 		while (cx * ny < nx * (ny - cy)) next cx++ {
 			for 0 ..< w do (x) {
-				step1 : const float = float(PI) / w;
-				step2 : const float = step1 * cx;
-				step3 : const float = step2 * (float(x) + 0.5f);
-				fx[x] = std::cos(step3);
-				//fx[x] = std::cos(PI / float(w) * float(cx) * (float(x) + 0.5f));
+				// casting PI down to float here increases the similarity with the target hash
+				fx[x] = std::cos(float(PI) / w * cx * (x + 0.5f));
 			}
 
 			f : float = 0.f;
 			for 0 ..< h do (y) {
-				//fy : const = std::cos(PI / float(h) * float(cy) * (float(y) + 0.5f));
-				fy : const = std::cos(PI / h * cy * (y + 0.5f));
+				fy : const = std::cos(float(PI) / h * cy * (y + 0.5f));
 				for 0 ..< w do (x) {
 					f += channel[x + y * w] * fx[x] * fy;
 				}
@@ -49,10 +73,10 @@ encode_channel : (channel, w, h, nx, ny) -> (dc : float, ac : std::vector<float>
 
 
 rgba_to_thumb_hash: (rgba: std::span<const u8>, w: i16, h: i16) -> std::vector<u8> = {
-	// TODO: do the same 100x100 max as ref?
+	assert(10 <= w <= 100);
+	assert(10 <= h <= 100);
 
 	assert(rgba.size() == w * h * 4);
-	assert(!rgba.empty());
 
 	// avg color
 	avg_r := 0.0f;
@@ -76,8 +100,6 @@ rgba_to_thumb_hash: (rgba: std::span<const u8>, w: i16, h: i16) -> std::vector<u
 		avg_b /= avg_a;
 	}
 
-	std::cout << "avg r:(avg_r)$ g:(avg_g)$ b:(avg_b)$ a:(avg_a)$\n";
-
 	has_alpha : const bool = avg_a < w * h;
 	l_limit : const i16;
 	if has_alpha {
@@ -93,8 +115,8 @@ rgba_to_thumb_hash: (rgba: std::span<const u8>, w: i16, h: i16) -> std::vector<u
 		longer_side = h;
 	}
 
-	l_w : const = std::max<i16>(1, i16(std::round(float(l_limit * w) / longer_side)));
-	l_h : const = std::max<i16>(1, i16(std::round(float(l_limit * h) / longer_side)));
+	l_w : const = std::max<i16>(1, i16(std::lround(float(l_limit * w) / longer_side)));
+	l_h : const = std::max<i16>(1, i16(std::lround(float(l_limit * h) / longer_side)));
 
 	l := std::vector<float>(w*h); // luminance
 	p := std::vector<float>(w*h); // yellow - blue
@@ -122,9 +144,6 @@ rgba_to_thumb_hash: (rgba: std::span<const u8>, w: i16, h: i16) -> std::vector<u
 	dct_p := encode_channel(p, w, h, 3, 3);
 	dct_q := encode_channel(q, w, h, 3, 3);
 
-	std::cout << "dct_l.dc: (dct_l.dc)$\n";
-	std::cout << "dct_l.scale: (dct_l.scale)$\n";
-
 	dct_a_dc := 1.f;
 	dct_a_ac := std::vector<float>();
 	dct_a_scale := 1.f;
@@ -139,13 +158,12 @@ rgba_to_thumb_hash: (rgba: std::span<const u8>, w: i16, h: i16) -> std::vector<u
 	}
 
 	is_landscape : const = w > h;
-	std::cout << "is_landscape: (is_landscape)$\n";
 
 	header24 : const u32 =
-		(u32(std::round(63.f * dct_l.dc)) << 0) |
-		(u32(std::round(31.5f + 31.5f * dct_p.dc)) << 6) |
-		(u32(std::round(31.5f + 31.5f * dct_q.dc)) << 12) |
-		(u32(std::round(31.0f * dct_l.scale)) << 18) |
+		(u32(std::lround(63.f * dct_l.dc)) << 0) |
+		(u32(std::lround(31.5f + 31.5f * dct_p.dc)) << 6) |
+		(u32(std::lround(31.5f + 31.5f * dct_q.dc)) << 12) |
+		(u32(std::lround(31.0f * dct_l.scale)) << 18) |
 		(u32(has_alpha) << 23)
 	;
 
@@ -159,8 +177,8 @@ rgba_to_thumb_hash: (rgba: std::span<const u8>, w: i16, h: i16) -> std::vector<u
 
 	header16 : const u16 =
 		landscape_l |
-		(u16(std::round(63.f * dct_p.scale)) << 3) |
-		(u16(std::round(63.f * dct_q.scale)) << 9) |
+		(u16(std::lround(63.f * dct_p.scale)) << 3) |
+		(u16(std::lround(63.f * dct_q.scale)) << 9) |
 		(u16(is_landscape) << 15)
 	;
 
@@ -174,8 +192,8 @@ rgba_to_thumb_hash: (rgba: std::span<const u8>, w: i16, h: i16) -> std::vector<u
 
 	if has_alpha {
 		hash.push_back(
-			(u8(std::round(15.f * dct_a_dc)) << 0) |
-			(u8(std::round(15.f * dct_a_scale)) << 4)
+			(u8(std::lround(15.f * dct_a_dc)) << 0) |
+			(u8(std::lround(15.f * dct_a_scale)) << 4)
 		);
 	}
 
@@ -183,7 +201,7 @@ rgba_to_thumb_hash: (rgba: std::span<const u8>, w: i16, h: i16) -> std::vector<u
 
 	for (dct_l.ac, dct_p.ac, dct_q.ac) do (ac) {
 		for ac do (f) {
-			v : const = u8(std::round(15.f * f));
+			v : const = u8(std::lround(15.f * f));
 			if is_odd {
 				hash.back() |= v << 4;
 			} else {
@@ -194,7 +212,7 @@ rgba_to_thumb_hash: (rgba: std::span<const u8>, w: i16, h: i16) -> std::vector<u
 	}
 	if has_alpha {
 		for dct_a_ac do (f) {
-			v : const = u8(std::round(15.f * f));
+			v : const = u8(std::lround(15.f * f));
 			if is_odd {
 				hash.back() |= v << 4;
 			} else {
