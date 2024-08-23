@@ -72,7 +72,7 @@ encode_channel : (channel, w, h, nx, ny) -> (dc : float, ac : std::vector<float>
 }
 
 
-rgba_to_thumb_hash: (rgba: std::span<const u8>, w: i16, h: i16) -> std::vector<u8> = {
+rgba_to_hash : (rgba : std::span<const u8>, w: i16, h: i16) -> std::vector<u8> = {
 	assert(10 <= w <= 100);
 	assert(10 <= h <= 100);
 
@@ -173,7 +173,6 @@ rgba_to_thumb_hash: (rgba: std::span<const u8>, w: i16, h: i16) -> std::vector<u
 	} else {
 		landscape_l = l_w;
 	}
-	std::cout << "landscape_l: (landscape_l)$\n";
 
 	header16 : const u16 =
 		landscape_l |
@@ -223,6 +222,40 @@ rgba_to_thumb_hash: (rgba: std::span<const u8>, w: i16, h: i16) -> std::vector<u
 	}
 
 	return hash;
+}
+
+// read the approx. aspect ratio from the hash
+// returns 0.f on error
+hash_to_aspect_ratio : (hash : std::span<const u8>) -> float = {
+	if hash.ssize() < 5 {
+		return 0.f;
+	}
+
+	has_alpha : const = (hash[2] & 0x80) != 0;
+	l_max : const i32;
+	if has_alpha {
+		l_max = 5;
+	} else {
+		l_max = 7;
+	}
+	l_min : const i32 = hash[3] & 7;
+
+	is_landscape : const = (hash[4] & 0x80) != 0;
+
+	lx : const i32;
+	if is_landscape {
+		lx = l_max;
+	} else {
+		lx = l_min;
+	}
+	ly : const i32;
+	if is_landscape {
+		ly = l_min;
+	} else {
+		ly = l_max;
+	}
+
+	return float(lx) / float(ly);
 }
 
 } // thumbhash

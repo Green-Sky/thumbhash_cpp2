@@ -34,11 +34,13 @@ target_link_libraries(thumbhash_tests PRIVATE
 
 ########################################
 
-#add_executable(thumbhash_cpp1_test
-	#./cpp1_test.cpp
-#)
+add_executable(thumbhash_cpp1_test
+	./cpp1_test.cpp
+)
 
-#target_link_libraries(thumbhash_cpp1_test PRIVATE
-	#thumbhash
-#)
+target_compile_features(thumbhash_cpp1_test PRIVATE cxx_std_20)
+
+target_link_libraries(thumbhash_cpp1_test PRIVATE
+	cppfront::cpp2util
+)
 

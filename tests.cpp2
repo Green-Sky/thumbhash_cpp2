@@ -42,8 +42,8 @@ main: () -> int = {
 		resized := thumbhash::scale_to_size_nn(test_data1_rgba, src_w, src_h);
 
 		// run hash
-		//hash_result : _ = thumbhash::rgba_to_thumb_hash(test_data1_rgba, src_w, src_h);
-		hash_result : _ = thumbhash::rgba_to_thumb_hash(resized.out_img, resized.out_w, resized.out_h);
+		//hash_result : _ = thumbhash::rgba_to_hash(test_data1_rgba, src_w, src_h);
+		hash_result : _ = thumbhash::rgba_to_hash(resized.out_img, resized.out_w, resized.out_h);
 
 		std::cout << "computed hash: ";
 		for hash_result do (e) {
@@ -72,6 +72,8 @@ main: () -> int = {
 				return 1;
 			}
 		}
+
+		std::cout << "reconstructed aspect ratio: (thumbhash::hash_to_aspect_ratio(hash_result))$\n";
 	}
 
 	return 0;
