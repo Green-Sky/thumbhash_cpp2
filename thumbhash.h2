@@ -4,7 +4,7 @@ thumbhash: namespace = {
 PI: _ == 3.14159'26535'89793'23846L;
 
 // down-/upscale to ~100x100, keeping the aprox. ratio
-scale_to_size_nn : (src_img, src_w, src_h) -> (out_img : std::vector<u8>, out_w : i32, out_h : i32) = {
+scale_to_size_nn : (src_img, src_w, src_h) -> (out_img : std::vector<u8> = (), out_w : i32, out_h : i32) = {
 	out_img = std::vector<u8>();
 
 	// resize to 100x100 (aprox, the longer size will be 100)

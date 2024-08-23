@@ -36,17 +36,17 @@ struct encode_channel_ret { float dc; std::vector<float> ac; float scale; };
 namespace thumbhash {
 
 [[nodiscard]] auto scale_to_size_nn(auto const& src_img, auto const& src_w, auto const& src_h) -> scale_to_size_nn_ret{
-     cpp2::impl::deferred_init<std::vector<cpp2::u8>> out_img;
+ std::vector<cpp2::u8> out_img {};
      cpp2::impl::deferred_init<cpp2::i32> out_w;
      cpp2::impl::deferred_init<cpp2::i32> out_h;
- out_img.construct(std::vector<cpp2::u8>());
+ out_img = std::vector<cpp2::u8>();
 
  // resize to 100x100 (aprox, the longer size will be 100)
  auto const img_size {std::max(src_w, src_h)}; 
  out_w.construct(std::lround(100 * src_w / CPP2_ASSERT_NOT_ZERO(CPP2_TYPEOF(src_w),img_size)));
  out_h.construct(std::lround(100 * src_h / CPP2_ASSERT_NOT_ZERO(CPP2_TYPEOF(src_h),cpp2::move(img_size))));
  //out_img = std::vector<u8>(out_w * out_h * 4, 0xff);
- CPP2_UFCS(resize)(out_img.value(), out_w.value() * out_h.value() * 4, 0xff);
+ CPP2_UFCS(resize)(out_img, out_w.value() * out_h.value() * 4, 0xff);
 
  // perform nn
  for ( auto const& dest_y : cpp2::range(0,out_h.value()) ) {
@@ -57,12 +57,12 @@ namespace thumbhash {
    auto const src_pos {(cpp2::move(sx) * 4) + cpp2::move(sy) * src_w * 4}; 
    auto const dst_pos {(dest_x * 4) + dest_y * out_w.value() * 4}; 
 
-   CPP2_ASSERT_IN_BOUNDS(out_img.value(), dst_pos + 0) = CPP2_ASSERT_IN_BOUNDS(src_img, src_pos + 0);
-   CPP2_ASSERT_IN_BOUNDS(out_img.value(), dst_pos + 1) = CPP2_ASSERT_IN_BOUNDS(src_img, src_pos + 1);
-   CPP2_ASSERT_IN_BOUNDS(out_img.value(), dst_pos + 2) = CPP2_ASSERT_IN_BOUNDS(src_img, src_pos + 2);
-   CPP2_ASSERT_IN_BOUNDS(out_img.value(), dst_pos + 3) = CPP2_ASSERT_IN_BOUNDS(src_img, cpp2::move(src_pos) + 3);
+   CPP2_ASSERT_IN_BOUNDS(out_img, dst_pos + 0) = CPP2_ASSERT_IN_BOUNDS(src_img, src_pos + 0);
+   CPP2_ASSERT_IN_BOUNDS(out_img, dst_pos + 1) = CPP2_ASSERT_IN_BOUNDS(src_img, src_pos + 1);
+   CPP2_ASSERT_IN_BOUNDS(out_img, dst_pos + 2) = CPP2_ASSERT_IN_BOUNDS(src_img, src_pos + 2);
+   CPP2_ASSERT_IN_BOUNDS(out_img, dst_pos + 3) = CPP2_ASSERT_IN_BOUNDS(src_img, cpp2::move(src_pos) + 3);
   }
- }return  { std::move(out_img.value()), std::move(out_w.value()), std::move(out_h.value()) }; 
+ }return  { std::move(out_img), std::move(out_w.value()), std::move(out_h.value()) }; 
 }
 
 [[nodiscard]] auto encode_channel(auto const& channel, auto const& w, auto const& h, auto const& nx, auto const& ny) -> encode_channel_ret{
